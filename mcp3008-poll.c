@@ -20,33 +20,29 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <sys/ioctl.h>
-#include <time.h>
-#include <sys/time.h>
-#include <getopt.h>
+#include "mcp3008-poll.h"
+
 #include <errno.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
 
-#define ADC_READ_ERROR -100000
+#define ADC_SYSFS_PATH "/sys/bus/iio/devices/iio:device0/"
 
-#define MAX_ADC 8
-
-char iiosyspath[] = "/sys/bus/iio/devices/iio:device0/";
-
-void register_sig_handler();
-void sigint_handler(int sig);
-void show_elapsed(struct timeval *start, struct timeval *end, int count);
 int loop(int delay_us, int *list);
-int open_adc(int adc);
-int read_adc(int fd);
+void show_elapsed(struct timeval *start, struct timeval *end, int count);
+void sigint_handler(int sig);
 
-int abort_read;
+static int abort_read;
 
+#ifdef BUILD_STANDALONE
 void usage(char *argv_0)
 {
     printf("\nUsage: %s <options> [adc-list]\n", argv_0);
@@ -61,7 +57,7 @@ int main(int argc, char **argv)
 {
     int opt, delay_us, adc, i;
     struct timeval start, end;
-    int adc_list[MAX_ADC];
+    int adc_list[ADC_MAX_CHANNELS];
 
     register_sig_handler();
 
@@ -149,12 +145,13 @@ void show_elapsed(struct timeval *start, struct timeval *end, int count)
     printf("Summary\n  Elapsed: %0.2lf seconds\n    Reads: %d\n     Rate: %0.2lf Hz\n\n",
         diff, count, rate);
 }
+#endif // BUILD_STANDALONE
 
 int loop(int delay_us, int *list)
 {
     int count, i, update, update_reset;
-    int val[MAX_ADC];
-    int fd[MAX_ADC];
+    int val[ADC_MAX_CHANNELS];
+    int fd[ADC_MAX_CHANNELS];
 
     count = 0;
     memset(fd, 0, sizeof(fd));
@@ -179,14 +176,14 @@ int loop(int delay_us, int *list)
 
     fprintf(stdout, "ADC          ");
 
-    for (i = 0; i < MAX_ADC; i++) {
+    for (i = 0; i < ADC_MAX_CHANNELS; i++) {
         if (list[i])
             fprintf(stdout, "      %d", i);
     }
 
     fprintf(stdout, "\n");
 
-    for (i = 0; i < MAX_ADC; i++) {
+    for (i = 0; i < ADC_MAX_CHANNELS; i++) {
         if (list[i]) {
             fd[i] = open_adc(i);
 
@@ -199,7 +196,7 @@ int loop(int delay_us, int *list)
     update = 1;
 
     while (!abort_read) {
-        for (i = 0; i < MAX_ADC; i++) {
+        for (i = 0; i < ADC_MAX_CHANNELS; i++) {
             if (!list[i])
                 continue;
 
@@ -219,7 +216,7 @@ int loop(int delay_us, int *list)
 
             fprintf(stdout, "\rRead %8d: ", count + 1);
 
-            for (i = 0; i < MAX_ADC; i++) {
+            for (i = 0; i < ADC_MAX_CHANNELS; i++) {
                 if (list[i])
                     fprintf(stdout, " %4d  ", val[i]);
             }
@@ -237,7 +234,7 @@ int loop(int delay_us, int *list)
 
 loop_done:
 
-    for (i = 0; i < MAX_ADC; i++) {
+    for (i = 0; i < ADC_MAX_CHANNELS; i++) {
         if (fd[i] > 0)
             close(fd[i]);
     }
@@ -264,13 +261,13 @@ int read_adc(int fd)
 int open_adc(int adc)
 {
     char path[128];
-    sprintf(path, "%sin_voltage%d_raw", iiosyspath, adc);
+    sprintf(path, "%sin_voltage%d_raw", ADC_SYSFS_PATH, adc);
 
     int fd = open(path, O_RDONLY);
 
     if (fd < 0) {
         perror("open()");
-        printf("%s\n", path);
+        fprintf(stderr, "%s\n", path);
     }
 
     return fd;
