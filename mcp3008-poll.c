@@ -278,7 +278,7 @@ void register_sig_handler()
     struct sigaction sia;
 
     bzero(&sia, sizeof sia);
-    sia.sa_handler = sigint_handler;
+    sia.sa_handler = abort_adc;
 
     if (sigaction(SIGINT, &sia, NULL) < 0) {
         perror("sigaction(SIGINT)");
@@ -286,7 +286,7 @@ void register_sig_handler()
     }
 }
 
-void sigint_handler(int sig)
+void abort_adc(int signum)
 {
     abort_read = 1;
 }

@@ -6,7 +6,11 @@
 #define ADC_MAX_CHANNELS 8
 #define ADC_READ_ERROR -0xffff
 
+// Let this module handle SIGINT.
 void register_sig_handler();
+
+// Set an abort for handling SIGINT externally.
+void abort_adc(int signum);
 
 // Open an ADC channel and return the file descriptor.
 int open_adc(int adc);
